@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #000;
+      color: #eaeaea;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+    .center {
+      height: 100%;
+      display: grid;
+      place-items: center;
+    }
+    .count {
+      font-size: clamp(44px, 10vw, 120px);
+      letter-spacing: 0.08em;
+      user-select: none;
+      text-shadow: 0 0 18px rgba(255,255,255,0.08);
+    }
+    .sub {
+      margin-top: 14px;
+      font-size: 12px;
+      letter-spacing: 0.24em;
+      opacity: 0.55;
+      text-align: center;
+    }
+    /* tiny “uneasy” flicker */
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      97% { opacity: 1; }
+      98% { opacity: 0.7; }
+      99% { opacity: 0.95; }
+    }
+    .count { animation: flicker 6s infinite; }
+  </style>
+</head>
+<body>
+  <div class="center">
+    <div>
+      <div class="count" id="t">--:--:--:--</div>
+      <div class="sub" id="z">Something beautiful is going to happen.</div>
+    </div>
+  </div>
+
+  <script>
+    const TZ = "America/New_York";
+
+    function getOffsetMinutes(date, timeZone) {
+      // Example outputs: "GMT-5", "GMT-05:00", "GMT+1"
+      const dtf = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        timeZoneName: "shortOffset",
+        year: "numeric"
+      });
+
+      const parts = dtf.formatToParts(date);
+      const tzPart = parts.find(p => p.type === "timeZoneName")?.value || "GMT+0";
+
+      const m = tzPart.match(/GMT([+-]\d{1,2})(?::(\d{2}))?/);
+      if (!m) return 0;
+
+      const hours = parseInt(m[1], 10);
+      const mins = m[2] ? parseInt(m[2], 10) : 0;
+      return hours * 60 + Math.sign(hours) * mins;
+    }
+
+    function zonedTimeToUtcMs(y, mon1, d, h, min, s, timeZone) {
+      // Iteratively correct for timezone offset at the intended instant
+      const baseUtc = Date.UTC(y, mon1 - 1, d, h, min, s);
+      let utc = baseUtc;
+
+      for (let i = 0; i < 3; i++) {
+        const offsetMin = getOffsetMinutes(new Date(utc), timeZone);
+        utc = baseUtc - offsetMin * 60_000;
+      }
+      return utc;
+    }
+
+    // Jan 1, 2026 00:00:00 in New York
+    const targetUtcMs = zonedTimeToUtcMs(2026, 1, 1, 0, 0, 0, TZ);
+
+    const el = document.getElementById("t");
+    const pad2 = n => String(n).padStart(2, "0");
+
+    function tick() {
+      const diffMs = targetUtcMs - Date.now();
+
+      if (diffMs <= 0) {
+        el.textContent = "00:00:00:00";
+        return;
+      }
+
+      const totalSeconds = Math.floor(diffMs / 1000);
+      const days = Math.floor(totalSeconds / 86400);
+      const hours = Math.floor((totalSeconds % 86400) / 3600);
+      const mins = Math.floor((totalSeconds % 3600) / 60);
+      const secs = totalSeconds % 60;
+
+      el.textContent = `${pad2(days)}:${pad2(hours)}:${pad2(mins)}:${pad2(secs)}`;
+    }
+
+    tick();
+    setInterval(tick, 250);
+  </script>
+</body>
+</html>
