@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build": "node build-manifesto.js"
+  },
   "dependencies": {
     "mammoth": "^1.11.0",
     "marked": "^17.0.1"

@@ -44,13 +44,19 @@ const options = {
 // options.convertImage = () => Promise.resolve({}); // This caused the crash.
 
 mammoth.convertToHtml({ path: sourcePath }, options)
-  .then(function(result) {
-    let htmlContent = result.value; // The generated HTML
-    
-    // 1. Remove any empty <img> tags or images we suppressed
-    // We marked them with class "remove-me" or just standard img tags
+    .then(function(result) {
+      let htmlContent = result.value; // The generated HTML
+      
+      // 1. Remove any empty <img> tags or images we suppressed
+    // We marked them with class "remove-me" or just standard img tags// 1. Remove images
     htmlContent = htmlContent.replace(/<img[^>]*class="remove-me"[^>]*>/g, '');
     htmlContent = htmlContent.replace(/<img[^>]*>/g, ''); // Remove ALL images from DOCX as requested
+
+    // 1.5 Remove the first line/title if it's a repeat
+    // Remove first H1 (Title)
+    htmlContent = htmlContent.replace(/^\s*<h1.*?>.*?<\/h1>\s*/si, '');
+    // Also remove empty paragraphs at the start
+    htmlContent = htmlContent.replace(/^\s*(<p>\s*<\/p>\s*)+/i, '');
 
     // 2. Insert banner.png at the top
     // The banner should be at the very top of the article content.
@@ -109,6 +115,13 @@ mammoth.convertToHtml({ path: sourcePath }, options)
     // Read existing index.html
     let indexHtml = fs.readFileSync(indexPath, 'utf8');
     
+    // Clean up old manual citations if they exist, because Mammoth handles footnotes differently.
+    // Do this BEFORE injecting new content so we don't delete what we just added.
+    const citationsRegex = /<div class="citations">[\s\S]*?<\/div>/;
+    if (citationsRegex.test(indexHtml)) {
+        indexHtml = indexHtml.replace(citationsRegex, '');
+    }
+
     // Inject Content
     // We look for <article>...</article> and replace content
     const articleRegex = /<article>[\s\S]*?<\/article>/;
@@ -120,18 +133,6 @@ mammoth.convertToHtml({ path: sourcePath }, options)
         console.error('Could not find <article> tag in index.html');
         process.exit(1);
     }
-
-    // Clean up old manual citations if they exist, because Mammoth handles footnotes differently.
-    // Mammoth typically outputs footnotes at the bottom of the HTML value automatically if they exist in the doc.
-    // However, Mammoth puts them in a section with id="doc-footnotes" or similar.
-    // We might need to styling for that.
-    
-    // For now, let's remove any existing manual .citations block since we're overwriting from DOCX
-    const citationsRegex = /<div class="citations">[\s\S]*?<\/div>/;
-    indexHtml = indexHtml.replace(citationsRegex, '');
-    
-    // Also remove the "References" header if we added it manually in the previous script,
-    // though the previous script put it inside the .citations div, so the regex above handles it.
 
     fs.writeFileSync(indexPath, indexHtml);
     console.log('Successfully updated manifesto/index.html from manifesto.docx');
