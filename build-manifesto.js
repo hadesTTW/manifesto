@@ -3,6 +3,7 @@ const path = require('path');
 const mammoth = require('mammoth');
 
 const sourcePath = path.join(__dirname, 'manifesto', 'Manifesto of the Anti-AI Movement.docx');
+const notePath = path.join(__dirname, 'manifesto', 'A Note To Early Readers.docx');
 const indexPath = path.join(__dirname, 'manifesto', 'index.html');
 
 // Check if source file exists
@@ -112,6 +113,27 @@ mammoth.convertToHtml({ path: sourcePath }, options)
       console.log('Conversion warnings:', messages);
     }
 
+    // 4. Process "A Note To Early Readers.docx" if it exists
+    if (fs.existsSync(notePath)) {
+        return mammoth.convertToHtml({ path: notePath }, options)
+            .then(function(noteResult) {
+                let noteHtml = noteResult.value;
+                // Basic cleanup for the note
+                noteHtml = noteHtml.replace(/<img[^>]*>/g, '');
+                noteHtml = noteHtml.replace(/^\s*(<p>\s*<\/p>\s*)+/i, '');
+
+                const noteSection = `
+                <div class="note-to-readers" style="font-family: sans-serif; margin-top: 80px; padding-top: 40px; border-top: 1px solid var(--border-color);">
+                    ${noteHtml}
+                </div>`;
+                
+                return htmlContent + noteSection;
+            });
+    } else {
+        return htmlContent;
+    }
+  })
+  .then(function(finalHtmlContent) {
     // Read existing index.html
     let indexHtml = fs.readFileSync(indexPath, 'utf8');
     
@@ -125,7 +147,7 @@ mammoth.convertToHtml({ path: sourcePath }, options)
     // Inject Content
     // We look for <article>...</article> and replace content
     const articleRegex = /<article>[\s\S]*?<\/article>/;
-    const newArticle = `<article>\n${htmlContent}\n</article>`;
+    const newArticle = `<article>\n${finalHtmlContent}\n</article>`;
     
     if (articleRegex.test(indexHtml)) {
         indexHtml = indexHtml.replace(articleRegex, newArticle);
@@ -135,7 +157,7 @@ mammoth.convertToHtml({ path: sourcePath }, options)
     }
 
     fs.writeFileSync(indexPath, indexHtml);
-    console.log('Successfully updated manifesto/index.html from manifesto.docx');
+    console.log('Successfully updated manifesto/index.html from manifesto.docx and note');
   })
   .catch(function(error) {
     console.error('Error converting DOCX:', error);
